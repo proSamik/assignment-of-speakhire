@@ -14,6 +14,7 @@ interface SurveyAttributes {
   sections: any; // JSON data
   isActive: boolean;
   sourceFile: string;
+  fileHash: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -30,6 +31,7 @@ class Survey extends Model<SurveyAttributes, SurveyCreationAttributes> implement
   public sections!: any;
   public isActive!: boolean;
   public sourceFile!: string;
+  public fileHash!: string | null;
   
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
@@ -62,6 +64,10 @@ Survey.init({
     type: DataTypes.STRING,
     allowNull: false,
     defaultValue: 'migrated_existing_survey'
+  },
+  fileHash: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
 }, {
   sequelize,

@@ -41,6 +41,7 @@ interface SurveyData {
   sections: Section[];
   isActive: boolean;
   sourceFile: string;
+  fileHash: string;
 }
 
 /**
@@ -179,12 +180,16 @@ async function createSurveyFromMarkdown(
   try {
     const section = parseMarkdownSection(filePath);
     
+    // Calculate file hash to track changes
+    const fileHash = getFileHash(filePath);
+    
     const surveyData: SurveyData = {
       title: surveyTitle,
       description: surveyDescription,
       sections: [section],
       isActive: true,
-      sourceFile: sourceFileName || path.basename(filePath)
+      sourceFile: sourceFileName || path.basename(filePath),
+      fileHash: fileHash // Store the file hash
     };
     
     // Create the survey in the database
@@ -229,12 +234,21 @@ async function createMultiSectionSurvey(
     // Parse each file as a section
     const sections: Section[] = [];
     
+    // Generate a combined hash of all files
+    let combinedHash = '';
+    
     for (const file of allFiles) {
       const filePath = path.join(directoryPath, file);
       const section = parseMarkdownSection(filePath);
       sections.push(section);
       console.log(`  - Added section "${section.title}" from ${file}`);
+      
+      // Add this file's hash to the combined hash
+      combinedHash += getFileHash(filePath);
     }
+    
+    // Create a hash of the combined hash to get a single hash
+    const finalHash = crypto.createHash('md5').update(combinedHash).digest('hex');
     
     // Create the survey with all sections
     const surveyData: SurveyData = {
@@ -242,7 +256,8 @@ async function createMultiSectionSurvey(
       description: surveyDescription,
       sections,
       isActive: true,
-      sourceFile: sourceFiles ? sourceFiles.join(',') : allFiles.join(',')
+      sourceFile: sourceFiles ? sourceFiles.join(',') : allFiles.join(','),
+      fileHash: finalHash // Store the combined hash
     };
     
     // Create the survey in the database
@@ -284,7 +299,7 @@ async function seedSurveysFromDirectory(directoryPath: string): Promise<void> {
     
     // First, get all existing surveys from database to track changes
     const existingSurveys = await Survey.findAll({
-      attributes: ['id', 'title', 'sourceFile', 'isActive']
+      attributes: ['id', 'title', 'sourceFile', 'isActive', 'fileHash']
     });
     
     // Create a map of sourceFile to survey
@@ -296,7 +311,8 @@ async function seedSurveysFromDirectory(directoryPath: string): Promise<void> {
         existingSurveyMap.set(file.trim(), {
           id: survey.id,
           title: survey.title,
-          isActive: survey.isActive
+          isActive: survey.isActive,
+          fileHash: survey.fileHash
         });
       });
     });
@@ -340,22 +356,23 @@ async function seedSurveysFromDirectory(directoryPath: string): Promise<void> {
         const allExist = existingRelatedSurveys.every(Boolean);
         
         if (allExist) {
-          // Check if all related surveys are part of the same survey (have same ID)
+          // Check if all related files belong to same survey (have same ID)
           const surveyIds = new Set(existingRelatedSurveys.map(survey => survey.id));
           
           if (surveyIds.size === 1) {
             // All related files belong to same survey
             const surveyId = existingRelatedSurveys[0].id;
             
-            // Check if any of the files have changed
-            const hasChanges = relatedFiles.some(file => {
+            // Generate a combined hash of all files
+            let combinedHash = '';
+            for (const file of relatedFiles) {
               const filePath = path.join(directoryPath, file);
-              const existingHash = existingSurveyMap.get(file)?.hash;
-              const currentHash = fileHashes.get(file);
-              return existingHash !== currentHash;
-            });
+              combinedHash += getFileHash(filePath);
+            }
+            const finalHash = crypto.createHash('md5').update(combinedHash).digest('hex');
             
-            if (hasChanges) {
+            // Check if the combined hash has changed
+            if (existingRelatedSurveys[0].fileHash !== finalHash) {
               // Mark existing survey as inactive (old version)
               await Survey.update({ isActive: false }, { where: { id: surveyId } });
               console.log(`Multi-section survey "${surveyTitle}" has changed. Creating new version...`);
@@ -399,9 +416,8 @@ async function seedSurveysFromDirectory(directoryPath: string): Promise<void> {
         if (existingSurvey) {
           // Check if the file has changed
           const currentHash = fileHashes.get(file);
-          const existingHash = existingSurveyMap.get(file)?.hash;
           
-          if (existingHash !== currentHash) {
+          if (existingSurvey.fileHash !== currentHash) {
             // Mark existing survey as inactive
             await Survey.update({ isActive: false }, { where: { id: existingSurvey.id } });
             console.log(`Survey "${surveyTitle}" has changed. Creating new version...`);
