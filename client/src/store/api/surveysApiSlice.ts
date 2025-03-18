@@ -25,9 +25,15 @@ export interface Section {
 export interface Question {
   id: string;
   text: string;
-  type: 'single' | 'multiple' | 'text';
+  type: 'single' | 'multiple' | 'text' | 'range';
   required: boolean;
   options?: Option[];
+  rangeMin?: number;
+  rangeMax?: number;
+  rangeLabels?: {
+    min: string;
+    max: string;
+  };
 }
 
 export interface Option {

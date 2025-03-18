@@ -64,6 +64,10 @@ const SurveyPage: React.FC = () => {
   // State for validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
   
+  // State for submission status
+  const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  
   // Calculate total number of steps (sections + user info)
   const totalSteps = survey ? survey.sections.length + 1 : 1;
   
@@ -75,7 +79,7 @@ const SurveyPage: React.FC = () => {
   }, [surveyId, setLastVisitedSurvey]);
   
   // Handle response changes
-  const handleResponseChange = (questionId: string, value: string | string[]) => {
+  const handleResponseChange = (questionId: string, value: string | string[] | number) => {
     const newResponses = { ...responses, [questionId]: value };
     setResponses(newResponses);
     
@@ -126,7 +130,12 @@ const SurveyPage: React.FC = () => {
         if (question.required) {
           const response = responses[question.id];
           
-          if (!response || (Array.isArray(response) && response.length === 0)) {
+          if (
+            response === undefined || 
+            response === '' || 
+            (Array.isArray(response) && response.length === 0) ||
+            (question.type === 'range' && typeof response !== 'number')
+          ) {
             newErrors[question.id] = 'This question is required';
           }
         }
@@ -162,33 +171,43 @@ const SurveyPage: React.FC = () => {
   
   // Handle survey submission
   const handleSubmit = async () => {
-    if (!survey || !surveyId) return;
-    
-    try {
-      // Format responses for submission
-      const formattedResponses = Object.entries(responses).map(([questionId, answer]) => ({
-        questionId,
-        answer,
-      }));
-      
-      // Submit response
-      await submitResponse({
-        surveyId: survey.id,
-        email: userInfo.email,
-        name: userInfo.name || undefined,
-        responses: formattedResponses,
-      }).unwrap();
-      
-      // Mark survey as completed in Redux store
-      markSurveyCompleted(surveyId);
-      
-      // Navigate to success page
-      navigate(`/survey/${survey.id}/success`);
-    } catch (err) {
-      console.error('Failed to submit survey response:', err);
-      setErrors({
-        submit: 'Failed to submit your response. Please try again.',
-      });
+    if (surveyId) {
+      try {
+        // Format the responses for submission
+        const formattedResponses = Object.keys(responses).map((questionId) => {
+          const value = responses[questionId];
+          // Convert numbers to strings for API submission if needed
+          const formattedValue = typeof value === 'number' ? value.toString() : value;
+          return {
+            questionId,
+            answer: formattedValue,
+          };
+        });
+        
+        // Submit the response
+        await submitResponse({
+          surveyId,
+          email: userInfo.email,
+          name: userInfo.name || undefined,
+          responses: formattedResponses,
+        }).unwrap();
+        
+        // Mark survey as completed in user preferences
+        markSurveyCompleted(surveyId);
+        
+        // Clear form data for this survey
+        setResponses({});
+        setUserInfo({ email: '', name: '' });
+        
+        // Show success message and redirect after delay
+        setSubmitted(true);
+        setTimeout(() => {
+          navigate('/thank-you');
+        }, 2000);
+      } catch (error) {
+        console.error('Failed to submit survey:', error);
+        setSubmitError('Failed to submit survey. Please try again.');
+      }
     }
   };
   
@@ -301,6 +320,18 @@ const SurveyPage: React.FC = () => {
         {surveyCompleted && (
           <Alert severity="info" sx={{ mb: 3 }}>
             You have already completed this survey. You can submit it again if you want.
+          </Alert>
+        )}
+        
+        {submitted && (
+          <Alert severity="success" sx={{ mb: 3 }}>
+            Your survey response has been submitted successfully! Redirecting...
+          </Alert>
+        )}
+        
+        {submitError && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {submitError}
           </Alert>
         )}
         

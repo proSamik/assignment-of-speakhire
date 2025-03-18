@@ -15,14 +15,17 @@ import {
   RadioGroup, 
   Checkbox, 
   TextField, 
-  Typography 
+  Typography,
+  Slider,
+  Box,
+  Stack
 } from '@mui/material';
 import { Question } from '../store/api/surveysApiSlice';
 
 interface SurveyQuestionProps {
   question: Question;
-  value: string | string[];
-  onChange: (questionId: string, value: string | string[]) => void;
+  value: string | string[] | number;
+  onChange: (questionId: string, value: string | string[] | number) => void;
   error?: string;
 }
 
@@ -40,7 +43,7 @@ const SurveyQuestion: React.FC<SurveyQuestionProps> = ({
   onChange,
   error,
 }) => {
-  const handleChange = (newValue: string | string[]) => {
+  const handleChange = (newValue: string | string[] | number) => {
     onChange(question.id, newValue);
   };
 
@@ -125,6 +128,55 @@ const SurveyQuestion: React.FC<SurveyQuestionProps> = ({
             error={!!error}
             helperText={error}
           />
+        </FormControl>
+      );
+
+    case 'range':
+      const min = question.rangeMin ?? 0;
+      const max = question.rangeMax ?? 10;
+      const minLabel = question.rangeLabels?.min ?? `${min}`;
+      const maxLabel = question.rangeLabels?.max ?? `${max}`;
+      
+      return (
+        <FormControl 
+          fullWidth 
+          required={question.required} 
+          error={!!error}
+          sx={{ mb: 3 }}
+        >
+          <Typography variant="subtitle1" gutterBottom>
+            {question.text}
+          </Typography>
+          
+          <Box sx={{ px: 2, py: 3 }}>
+            <Slider
+              value={typeof value === 'number' ? value : min}
+              min={min}
+              max={max}
+              step={1}
+              marks={[
+                { value: min, label: minLabel },
+                { value: max, label: maxLabel }
+              ]}
+              valueLabelDisplay="on"
+              onChange={(_, newValue) => handleChange(newValue as number)}
+            />
+            
+            <Stack 
+              direction="row" 
+              justifyContent="space-between" 
+              sx={{ mt: 1 }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                {minLabel}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {maxLabel}
+              </Typography>
+            </Stack>
+          </Box>
+          
+          {error && <FormHelperText>{error}</FormHelperText>}
         </FormControl>
       );
 

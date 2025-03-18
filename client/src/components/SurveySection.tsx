@@ -11,8 +11,8 @@ import SurveyQuestion from './SurveyQuestion';
 
 interface SurveySectionProps {
   section: Section;
-  responses: Record<string, string | string[]>;
-  onChange: (questionId: string, value: string | string[]) => void;
+  responses: Record<string, string | string[] | number>;
+  onChange: (questionId: string, value: string | string[] | number) => void;
   errors: Record<string, string>;
 }
 
@@ -49,7 +49,15 @@ const SurveySection: React.FC<SurveySectionProps> = ({
           <SurveyQuestion
             key={question.id}
             question={question}
-            value={responses[question.id] || (question.type === 'multiple' ? [] : '')}
+            value={
+              responses[question.id] !== undefined
+                ? responses[question.id]
+                : question.type === 'multiple'
+                ? []
+                : question.type === 'range'
+                ? question.rangeMin || 0
+                : ''
+            }
             onChange={onChange}
             error={errors[question.id]}
           />

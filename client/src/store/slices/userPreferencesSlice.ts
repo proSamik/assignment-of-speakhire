@@ -8,7 +8,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '../index';
 
 // Define response type
-export type SurveyResponse = Record<string, string | string[]>;
+export type SurveyResponse = Record<string, string | string[] | number>;
 
 // Define the interface for the user preferences state
 export interface UserPreferencesState {
