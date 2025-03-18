@@ -105,7 +105,7 @@ A full-stack web application for creating and collecting survey responses. Built
 1. Clone the repository
    ```bash
    git clone <repository-url>
-   cd survey-application
+   cd assignment-of-speakhire
    ```
 
 2. Create the secrets directory and add SMTP credentials
