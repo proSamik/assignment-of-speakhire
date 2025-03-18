@@ -12,6 +12,7 @@ import path from 'path';
 import { connectDB } from './models/db';
 import surveyRoutes from './routes/surveyRoutes';
 import responseRoutes from './routes/responseRoutes';
+import { runSeed } from './utils/runSeed';
 
 // Load environment variables
 dotenv.config();
@@ -58,6 +59,15 @@ const startServer = async () => {
   try {
     // Connect to the database
     await connectDB();
+    
+    // Seed surveys from markdown files
+    try {
+      await runSeed();
+      console.log('Surveys seeded successfully');
+    } catch (seedError) {
+      console.error('Error seeding surveys:', seedError);
+      // Continue server startup even if seeding fails
+    }
     
     // Start the server
     app.listen(PORT, () => {

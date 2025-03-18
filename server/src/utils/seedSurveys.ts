@@ -7,6 +7,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { connectDB } from '../models/db';
 import Survey from '../models/survey.model';
+import crypto from 'crypto';
 
 interface QuestionOption {
   id: string;
@@ -32,6 +33,18 @@ interface SurveyData {
   title: string;
   description?: string;
   sections: Section[];
+  isActive: boolean;
+  sourceFile: string;
+}
+
+/**
+ * Calculates MD5 hash of a file to track changes
+ * @param filePath - Path to the file
+ * @returns MD5 hash string
+ */
+function getFileHash(filePath: string): string {
+  const fileContent = fs.readFileSync(filePath);
+  return crypto.createHash('md5').update(fileContent).digest('hex');
 }
 
 /**
@@ -124,11 +137,13 @@ function parseMarkdownSection(filePath: string): Section {
  * @param filePath - Path to the markdown file
  * @param surveyTitle - Title for the survey
  * @param surveyDescription - Description for the survey
+ * @param sourceFileName - Name of the source markdown file
  */
 async function createSurveyFromMarkdown(
   filePath: string, 
   surveyTitle: string,
-  surveyDescription?: string
+  surveyDescription: string | undefined,
+  sourceFileName: string | undefined
 ): Promise<void> {
   try {
     const section = parseMarkdownSection(filePath);
@@ -136,7 +151,9 @@ async function createSurveyFromMarkdown(
     const surveyData: SurveyData = {
       title: surveyTitle,
       description: surveyDescription,
-      sections: [section]
+      sections: [section],
+      isActive: true,
+      sourceFile: sourceFileName || path.basename(filePath)
     };
     
     // Create the survey in the database
@@ -154,12 +171,14 @@ async function createSurveyFromMarkdown(
  * @param filePrefix - Common prefix for the files that should be combined into one survey
  * @param surveyTitle - Title for the survey
  * @param surveyDescription - Description for the survey
+ * @param sourceFiles - Array of source file names
  */
 async function createMultiSectionSurvey(
   directoryPath: string,
   filePrefix: string,
   surveyTitle: string,
-  surveyDescription?: string
+  surveyDescription: string | undefined,
+  sourceFiles: string[] | undefined
 ): Promise<void> {
   try {
     // Find all files that start with the given prefix
@@ -190,7 +209,9 @@ async function createMultiSectionSurvey(
     const surveyData: SurveyData = {
       title: surveyTitle,
       description: surveyDescription,
-      sections
+      sections,
+      isActive: true,
+      sourceFile: sourceFiles ? sourceFiles.join(',') : allFiles.join(',')
     };
     
     // Create the survey in the database
@@ -230,6 +251,32 @@ async function seedSurveysFromDirectory(directoryPath: string): Promise<void> {
     // Connect to the database
     await connectDB();
     
+    // First, get all existing surveys from database to track changes
+    const existingSurveys = await Survey.findAll({
+      attributes: ['id', 'title', 'sourceFile', 'isActive']
+    });
+    
+    // Create a map of sourceFile to survey
+    const existingSurveyMap = new Map();
+    existingSurveys.forEach(survey => {
+      // For multi-section surveys, the sourceFile will contain multiple filenames separated by commas
+      const sourceFiles = survey.sourceFile.split(',');
+      sourceFiles.forEach(file => {
+        existingSurveyMap.set(file.trim(), {
+          id: survey.id,
+          title: survey.title,
+          isActive: survey.isActive
+        });
+      });
+    });
+    
+    // Store file hashes to track changes
+    const fileHashes = new Map<string, string>();
+    files.forEach(file => {
+      const filePath = path.join(directoryPath, file);
+      fileHashes.set(file, getFileHash(filePath));
+    });
+    
     // Find file prefixes for multi-section surveys
     const prefixMap = new Map<string, string[]>();
     
@@ -245,70 +292,117 @@ async function seedSurveysFromDirectory(directoryPath: string): Promise<void> {
       }
     });
     
+    // Track which files have been processed
+    const processedFiles = new Set<string>();
+    
     // Create multi-section surveys
     for (const [prefix, relatedFiles] of prefixMap.entries()) {
       if (relatedFiles.length > 1) {
+        // Mark these files as processed
+        relatedFiles.forEach(file => processedFiles.add(file));
+        
+        // Get survey title from prefix (replace underscores with spaces)
         const surveyTitle = prefix.replace(/_/g, ' ');
         
-        await createMultiSectionSurvey(
-          directoryPath,
-          prefix,
-          surveyTitle,
-          `Multi-section survey created from ${relatedFiles.length} files with prefix "${prefix}"`
-        );
+        // Check if all the related files exist in our map and have the same survey ID
+        const existingRelatedSurveys = relatedFiles.map(file => existingSurveyMap.get(file));
+        const allExist = existingRelatedSurveys.every(Boolean);
         
-        // Remove these files from the list of individual files to process
-        relatedFiles.forEach(file => {
-          const index = files.indexOf(file);
-          if (index !== -1) {
-            files.splice(index, 1);
+        if (allExist) {
+          // Check if all related surveys are part of the same survey (have same ID)
+          const surveyIds = new Set(existingRelatedSurveys.map(survey => survey.id));
+          
+          if (surveyIds.size === 1) {
+            // All related files belong to same survey
+            const surveyId = existingRelatedSurveys[0].id;
+            
+            // Check if any of the files have changed
+            const hasChanges = relatedFiles.some(file => {
+              const filePath = path.join(directoryPath, file);
+              const existingHash = existingSurveyMap.get(file)?.hash;
+              const currentHash = fileHashes.get(file);
+              return existingHash !== currentHash;
+            });
+            
+            if (hasChanges) {
+              // Mark existing survey as inactive (old version)
+              await Survey.update({ isActive: false }, { where: { id: surveyId } });
+              console.log(`Multi-section survey "${surveyTitle}" has changed. Creating new version...`);
+              
+              // Create new survey
+              await createMultiSectionSurvey(directoryPath, prefix, surveyTitle, undefined, relatedFiles);
+            } else {
+              console.log(`No changes detected for multi-section survey "${surveyTitle}". Skipping...`);
+            }
+          } else {
+            // Files belong to different surveys - consolidate them
+            console.log(`Files for "${surveyTitle}" belong to different surveys. Consolidating...`);
+            
+            // Mark all related surveys as inactive
+            for (const survey of existingRelatedSurveys) {
+              await Survey.update({ isActive: false }, { where: { id: survey.id } });
+            }
+            
+            // Create new consolidated survey
+            await createMultiSectionSurvey(directoryPath, prefix, surveyTitle, undefined, relatedFiles);
           }
-        });
+        } else {
+          // New multi-section survey or some files are new
+          console.log(`Creating new multi-section survey "${surveyTitle}"...`);
+          await createMultiSectionSurvey(directoryPath, prefix, surveyTitle, undefined, relatedFiles);
+        }
       }
     }
     
-    // Process remaining individual files
+    // Create individual surveys for files that aren't part of multi-section surveys
     for (const file of files) {
-      // Skip files that might be part of multi-section surveys
-      if (/_Part\d+\.md$/i.test(file)) {
-        continue;
+      if (!processedFiles.has(file)) {
+        const filePath = path.join(directoryPath, file);
+        
+        // Extract survey title from filename (remove extension and replace underscores with spaces)
+        const surveyTitle = file.replace('.md', '').replace(/_/g, ' ');
+        
+        // Check if this survey already exists
+        const existingSurvey = existingSurveyMap.get(file);
+        
+        if (existingSurvey) {
+          // Check if the file has changed
+          const currentHash = fileHashes.get(file);
+          const existingHash = existingSurveyMap.get(file)?.hash;
+          
+          if (existingHash !== currentHash) {
+            // Mark existing survey as inactive
+            await Survey.update({ isActive: false }, { where: { id: existingSurvey.id } });
+            console.log(`Survey "${surveyTitle}" has changed. Creating new version...`);
+            
+            // Create new survey
+            await createSurveyFromMarkdown(filePath, surveyTitle, undefined, file);
+          } else {
+            console.log(`No changes detected for survey "${surveyTitle}". Skipping...`);
+          }
+        } else {
+          // New survey
+          console.log(`Creating new survey "${surveyTitle}"...`);
+          await createSurveyFromMarkdown(filePath, surveyTitle, undefined, file);
+        }
       }
-      
-      const filePath = path.join(directoryPath, file);
-      
-      // Generate survey title from file name
-      const surveyTitle = file
-        .replace('.md', '')
-        .replace(/_/g, ' ');
-      
-      await createSurveyFromMarkdown(
-        filePath, 
-        surveyTitle,
-        `Survey created from ${file}`
-      );
     }
     
-    console.log('All surveys have been seeded successfully!');
+    // Check for deleted files
+    for (const [sourceFile, survey] of existingSurveyMap.entries()) {
+      if (!files.includes(sourceFile) && survey.isActive) {
+        // Mark as inactive if the file no longer exists
+        await Survey.update({ isActive: false }, { where: { id: survey.id } });
+        console.log(`Survey source file "${sourceFile}" no longer exists. Marked as inactive.`);
+      }
+    }
+    
+    console.log('Survey seed process completed!');
   } catch (error) {
     console.error('Error seeding surveys:', error);
+    throw error;
   }
 }
 
-// If this script is run directly (not imported)
-if (require.main === module) {
-  const markdownDir = path.join(__dirname, '../../markdown');
-  
-  seedSurveysFromDirectory(markdownDir)
-    .then(() => process.exit(0))
-    .catch(error => {
-      console.error('Fatal error:', error);
-      process.exit(1);
-    });
-}
-
-export {
-  parseMarkdownSection,
-  createSurveyFromMarkdown,
-  createMultiSectionSurvey,
-  seedSurveysFromDirectory
-}; 
+// Export the functions
+export { seedSurveysFromDirectory }; 

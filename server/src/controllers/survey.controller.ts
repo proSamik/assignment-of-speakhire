@@ -17,6 +17,9 @@ import { Survey as SurveyType } from '../types/survey';
 export const getAllSurveys = async (req: Request, res: Response): Promise<void> => {
   try {
     const surveys = await Survey.findAll({
+      where: {
+        isActive: true
+      },
       order: [['createdAt', 'DESC']]
     });
     
@@ -36,7 +39,12 @@ export const getSurveyById = async (req: Request, res: Response): Promise<void> 
   try {
     const { id } = req.params;
     
-    const survey = await Survey.findByPk(id);
+    const survey = await Survey.findOne({
+      where: {
+        id,
+        isActive: true
+      }
+    });
     
     if (!survey) {
       res.status(404).json({ message: 'Survey not found' });
@@ -81,7 +89,9 @@ export const createSurvey = async (req: Request, res: Response): Promise<void> =
     const newSurvey = await Survey.create({
       title,
       description: description || null,
-      sections: processedSections
+      sections: processedSections,
+      isActive: true,
+      sourceFile: `manually_created_${Date.now()}.json` // For manually created surveys
     });
     
     res.status(201).json(newSurvey);

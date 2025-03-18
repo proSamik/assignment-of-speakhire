@@ -6,9 +6,12 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
-    "build": "tsc",
+    "build": "tsc && node dist/utils/runSeed.js",
+    "tsc": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "seed": "ts-node src/utils/runSeed.ts"
+    "seed": "ts-node src/utils/runSeed.ts",
+    "prestart": "node dist/utils/runSeed.js",
+    "predev": "ts-node src/utils/runSeed.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

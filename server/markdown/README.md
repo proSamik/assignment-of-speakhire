@@ -56,14 +56,32 @@ Example filename structure:
 
 These would create a single survey titled "Employee Satisfaction" with three sections.
 
-## Adding New Surveys
+## Automatic Survey Seeding
 
-1. Create a new markdown file in this directory
-2. Follow the format guidelines above
-3. Run the seed script to add the survey to the database:
-   ```
-   npm run seed
-   ```
+The system automatically processes markdown files in this directory when the server starts (via `npm run build`, `npm run start`, or `npm run dev`). This ensures that surveys are always up-to-date with the latest markdown content.
+
+### Version Control for Surveys
+
+The system tracks changes to markdown files and automatically updates the survey database:
+
+1. **Adding a new markdown file**: Creates a new survey in the database
+2. **Modifying a markdown file**: Creates a new version of the survey while marking the old version as inactive
+3. **Deleting a markdown file**: Marks the corresponding survey as inactive in the database
+
+This versioning system ensures that:
+- Users always see the latest version of each survey
+- Data integrity is maintained for completed surveys
+- Changes to surveys don't affect historical response data
+
+## Automatic Database Schema Updates
+
+The system automatically handles all database schema changes and data migrations when the server starts. This fully automated process:
+
+1. Detects and adds any missing columns to the database with appropriate default values
+2. Updates existing survey records with meaningful values
+3. Ensures backward compatibility with existing surveys and survey responses
+
+You never need to run any migration commands manually - everything is handled automatically during server startup.
 
 ## File Naming Conventions
 
@@ -71,10 +89,19 @@ These would create a single survey titled "Employee Satisfaction" with three sec
 - Example: `Customer_Feedback.md` becomes a survey titled "Customer Feedback"
 - For multi-section surveys, use the format: `Survey_Name_Part1.md`, `Survey_Name_Part2.md`, etc.
 
+## Manual Seeding
+
+You can also manually trigger the seed process (including automatic migrations) by running:
+
+```
+npm run seed
+```
+
 ## Important Notes
 
 - Each standalone markdown file becomes a separate survey
 - Files that follow the multi-section naming pattern will be combined into one survey
 - All questions are required by default
 - The survey title is generated from the filename (without the `_Part#` suffix for multi-section surveys)
-- The README.md file in this directory is ignored by the seeding process 
+- The README.md file in this directory is ignored by the seeding process
+- Only active (latest version) surveys are shown to users 
