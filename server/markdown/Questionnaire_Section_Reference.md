@@ -34,3 +34,7 @@
 - Lower price
 - Better customer support
 -- Multiple Choice 
+
+6. On a scale of 1 to 10, how would you rate your overall satisfaction with our service?
+- 0 (Not likely at all) → 10 (Extremely likely)
+-- Range
