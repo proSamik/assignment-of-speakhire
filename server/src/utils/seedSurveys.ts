@@ -17,9 +17,15 @@ interface QuestionOption {
 interface Question {
   id: string;
   text: string;
-  type: 'single' | 'multiple' | 'text';
+  type: 'single' | 'multiple' | 'text' | 'range';
   required: boolean;
   options?: QuestionOption[];
+  rangeMin?: number;
+  rangeMax?: number;
+  rangeLabels?: {
+    min: string;
+    max: string;
+  };
 }
 
 interface Section {
@@ -92,10 +98,33 @@ function parseMarkdownSection(filePath: string): Section {
     // Check if it's an option (starts with a dash)
     const optionMatch = line.match(/^-\s+(.+)$/);
     if (optionMatch && currentQuestion) {
-      currentOptions.push({
-        id: uuidv4(),
-        text: optionMatch[1]
-      });
+      // Check if it's a range option (contains arrow →)
+      const rangeMatch = optionMatch[1].match(/(\d+)\s*\(([^)]+)\)\s*→\s*(\d+)\s*\(([^)]+)\)/);
+      if (rangeMatch && currentQuestion) {
+        // It's a range option
+        const min = parseInt(rangeMatch[1], 10);
+        const minLabel = rangeMatch[2].trim();
+        const max = parseInt(rangeMatch[3], 10);
+        const maxLabel = rangeMatch[4].trim();
+        
+        // Store range info in the question
+        currentQuestion.type = 'range';
+        currentQuestion.rangeMin = min;
+        currentQuestion.rangeMax = max;
+        currentQuestion.rangeLabels = {
+          min: minLabel,
+          max: maxLabel
+        };
+        
+        // We don't need to store options for range questions
+        currentOptions = [];
+      } else {
+        // Regular option
+        currentOptions.push({
+          id: uuidv4(),
+          text: optionMatch[1]
+        });
+      }
       continue;
     }
     
@@ -110,9 +139,11 @@ function parseMarkdownSection(filePath: string): Section {
         currentQuestion.type = 'multiple';
       } else if (typeText.includes('text')) {
         currentQuestion.type = 'text';
+      } else if (typeText.includes('range')) {
+        currentQuestion.type = 'range';
       }
       
-      // If the question is of type text, we don't need options
+      // If the question is of type text or range, we don't need options
       if (currentQuestion.type === 'text') {
         currentOptions = [];
       }

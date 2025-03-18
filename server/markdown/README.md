@@ -13,6 +13,7 @@ Each markdown file should follow this format:
   - `-- Single Choice` - Only one option can be selected
   - `-- Multiple Choice` - Multiple options can be selected
   - `-- Text` - Free text input (no options needed)
+  - `-- Range` - Numeric slider with min and max values (format: min → max)
 
 Example:
 
@@ -37,6 +38,10 @@ Example:
 
 3. Please tell us more about your experience with our products.
 -- Text
+
+4. How likely are you to recommend our products to others?
+- 0 (Not likely at all) → 10 (Extremely likely)
+-- Range
 ```
 
 ## Creating Multi-Section Surveys

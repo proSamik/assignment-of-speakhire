@@ -14,9 +14,15 @@ export interface Option {
 export interface Question {
   id: string;
   text: string;
-  type: 'single' | 'multiple' | 'text';
+  type: 'single' | 'multiple' | 'text' | 'range';
   required: boolean;
   options?: Option[];
+  rangeMin?: number;
+  rangeMax?: number;
+  rangeLabels?: {
+    min: string;
+    max: string;
+  };
 }
 
 // Section of a survey
@@ -45,7 +51,7 @@ export interface SurveyResponse {
   name?: string;
   responses: {
     questionId: string;
-    answer: string | string[];
+    answer: string | string[] | number;
   }[];
   createdAt?: Date;
 }
@@ -57,6 +63,6 @@ export interface SubmitResponseRequest {
   name?: string;
   responses: {
     questionId: string;
-    answer: string | string[];
+    answer: string | string[] | number;
   }[];
 } 
