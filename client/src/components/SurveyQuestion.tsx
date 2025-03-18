@@ -148,29 +148,60 @@ const SurveyQuestion: React.FC<SurveyQuestionProps> = ({
             {question.text}
           </Typography>
           
-          <Box sx={{ px: 2, py: 3 }}>
+          <Box sx={{ px: { xs: 1, sm: 2 }, py: 2 }}>
+            {/* Value display */}
+            <Box sx={{ mb: 1, display: 'flex', justifyContent: 'center' }}>
+              <Typography variant="h6">
+                {typeof value === 'number' ? value : min}
+              </Typography>
+            </Box>
+            
+            {/* Slider with compact marks on mobile */}
             <Slider
               value={typeof value === 'number' ? value : min}
               min={min}
               max={max}
               step={1}
               marks={[
-                { value: min, label: minLabel },
-                { value: max, label: maxLabel }
+                { value: min, label: '' },
+                { value: max, label: '' }
               ]}
-              valueLabelDisplay="on"
+              valueLabelDisplay="auto"
               onChange={(_, newValue) => handleChange(newValue as number)}
+              sx={{
+                '& .MuiSlider-markLabel': {
+                  fontSize: '0.75rem',
+                },
+              }}
             />
             
+            {/* Range labels below slider */}
             <Stack 
               direction="row" 
               justifyContent="space-between" 
               sx={{ mt: 1 }}
             >
-              <Typography variant="caption" color="text.secondary">
+              <Typography 
+                variant="caption" 
+                color="text.secondary"
+                sx={{ 
+                  maxWidth: '45%', 
+                  fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                  overflowWrap: 'break-word' 
+                }}
+              >
                 {minLabel}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography 
+                variant="caption" 
+                color="text.secondary"
+                sx={{ 
+                  maxWidth: '45%', 
+                  fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                  textAlign: 'right',
+                  overflowWrap: 'break-word' 
+                }}
+              >
                 {maxLabel}
               </Typography>
             </Stack>
