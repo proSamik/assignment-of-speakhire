@@ -202,7 +202,7 @@ const SurveyPage: React.FC = () => {
         // Show success message and redirect after delay
         setSubmitted(true);
         setTimeout(() => {
-          navigate('/thank-you');
+          navigate(`/survey/${surveyId}/success`); // Redirect to /survey/:surveyId/success after submission
         }, 2000);
       } catch (error) {
         console.error('Failed to submit survey:', error);
