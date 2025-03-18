@@ -1,0 +1,72 @@
+# Project Instructions
+
+Use specification and guidelines as you build the app.
+
+Write the complete code for every step. Do not get lazy.
+
+Your goal is to completely finish whatever I ask for.
+
+You will see <aicontext> tags in the code. These are context tags that you should use to help you understand the codebase.
+
+## Overview
+
+This is a survey application with separate client and server components.
+
+## Tech Stack
+
+- Frontend: React, TypeScript, MUI, Redux, RTK Query, React Router
+- Backend: Express, TypeScript, cors, dotenv, nodemailer
+- Database: PostgreSQL
+- Deployment: Docker containers
+
+## Project Structure
+
+- `client` - React frontend
+  - `src` - Source code
+    - `components` - Shared components
+    - `pages` - Page components
+    - `store` - Redux store
+    - `theme` - Theme configuration
+    - `types` - Type definitions
+    - `utils` - Utility functions
+- `server` - Express backend
+  - `src` - Source code
+    - `controllers` - Request handlers
+    - `models` - Database models
+    - `routes` - API routes
+    - `services` - Business logic
+    - `types` - Type definitions
+    - `utils` - Utility functions
+
+## Rules
+
+Follow these rules when building the app.
+
+### General Rules
+
+- Use TypeScript for all code
+- Follow DRY (Don't Repeat Yourself) principle
+- Always comment function implementations
+- Code should be self-explanatory
+- Add <aicontext> tags at the top of each file
+
+### Frontend Rules
+
+- Use Material UI for components
+- Implement dark and light theme with browser detection
+- Use Redux for state management
+- Use React Router for navigation
+- Implement form validation
+
+### Backend Rules
+
+- Use Express for API
+- Implement proper error handling
+- Use PostgreSQL for data storage
+- Send emails using SMTP via nodemailer
+
+### Environment Variables
+
+- Store all credentials in .env files
+- Create .env.example files
+- Environment variables will be passed to Docker containers 
