@@ -29,24 +29,52 @@ const allowedOrigins = [
   (process.env.CLIENT_URL || 'http://localhost:3000') + '/'
 ];
 
-app.use(cors({
-  origin: function(origin, callback) {
-    // Reject requests with no origin
-    if (!origin) {
-      return callback(new Error('Not allowed by CORS: No origin specified'), false);
-    }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`Not allowed by CORS: Origin ${origin} not allowed`), false);
-    }
-  },
-  credentials: true
-}));
+// Special route for the responses viewer - with its own CORS policy
+// This must be defined BEFORE the main CORS middleware
+app.get('/responses-viewer', (req, res, next) => {
+  // Apply permissive CORS only for this route
+  cors({ 
+    origin: '*',
+    methods: ['GET']
+  })(req, res, () => {
+    // Send the HTML file after CORS headers are set
+    res.sendFile(path.join(__dirname, '../public/api-test.html'));
+  });
+});
+
+// Create a CORS middleware that checks the referer
+const checkRefererMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Check if the request is coming from our responses-viewer page
+  const referer = req.headers.referer || '';
+  
+  if (referer.includes('/responses-viewer')) {
+    // If from responses-viewer, bypass CORS checks
+    return next();
+  }
+  
+  // For all other requests, apply regular CORS checks
+  cors({
+    origin: function(origin, callback) {
+      // Reject requests with no origin
+      if (!origin) {
+        return callback(new Error('Not allowed by CORS: No origin specified'), false);
+      }
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Not allowed by CORS: Origin ${origin} not allowed`), false);
+      }
+    },
+    credentials: true
+  })(req, res, next);
+};
+
+// Configure CORS with referer checking
+app.use(checkRefererMiddleware);
 
 console.log(`CORS configured to allow origins:`, allowedOrigins);
-console.log('Requests with no origin will be rejected');
+console.log('Requests from responses-viewer page will bypass CORS checks');
 
 app.use(express.json());
 
@@ -56,12 +84,6 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Routes
 app.use('/api/surveys', surveyRoutes);
 app.use('/api/responses', responseRoutes);
-
-// Special route for the responses viewer
-app.get('/responses-viewer', (req, res) => {
-  // Allow access from the browser by sending the HTML file
-  res.sendFile(path.join(__dirname, '../public/api-test.html'), { headers: { 'Access-Control-Allow-Origin': '*' } });
-});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
