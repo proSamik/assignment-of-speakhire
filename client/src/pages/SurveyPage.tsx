@@ -411,7 +411,7 @@ const SurveyPage: React.FC = () => {
     } else {
       // Replace with UserInfoForm or your custom form for user info
       return (
-        <Box>
+        <Box component="form" autoComplete="on">
           <Typography variant="h6" gutterBottom>
             Your Information
           </Typography>
@@ -420,6 +420,8 @@ const SurveyPage: React.FC = () => {
             <Typography>Email *</Typography>
             <input
               type="email"
+              name="email"
+              autoComplete="email"
               value={userInfo.email}
               onChange={(e) => handleUserInfoChange('email', e.target.value)}
               style={{
@@ -441,16 +443,23 @@ const SurveyPage: React.FC = () => {
             <Typography>Name (optional)</Typography>
             <input
               type="text"
+              name="name"
+              autoComplete="name"
               value={userInfo.name}
               onChange={(e) => handleUserInfoChange('name', e.target.value)}
               style={{
                 width: '100%',
                 padding: '10px',
                 marginTop: '5px',
-                border: '1px solid #ccc',
+                border: errors.name ? '1px solid red' : '1px solid #ccc',
                 borderRadius: '4px'
               }}
             />
+            {errors.name && (
+              <Typography color="error" variant="caption">
+                {errors.name}
+              </Typography>
+            )}
           </Box>
         </Box>
       );
