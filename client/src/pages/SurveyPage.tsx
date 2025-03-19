@@ -24,6 +24,52 @@ import SurveySection from '../components/SurveySection';
 import useUserPreferences from '../hooks/useUserPreferences';
 
 /**
+ * Sanitizes a string to prevent malicious input
+ * @param input - The string to sanitize
+ * @returns A sanitized string
+ */
+const sanitizeInput = (input: string): string => {
+  if (!input) return input;
+  
+  // Replace potentially dangerous characters
+  return input
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/\\/g, '&#092;')
+    .replace(/;/g, '&#059;')
+    .trim();
+};
+
+/**
+ * Checks if an input might contain SQL injection attempts
+ * @param input - The string to check
+ * @returns Whether the input may contain SQL injection attempt
+ */
+const containsSqlInjection = (input: string): boolean => {
+  if (!input) return false;
+  
+  // Check for common SQL injection patterns
+  const sqlPatterns = [
+    /(\b|')SELECT(\b|')/i,
+    /(\b|')INSERT(\b|')/i,
+    /(\b|')UPDATE(\b|')/i,
+    /(\b|')DELETE(\b|')/i,
+    /(\b|')DROP(\b|')/i,
+    /(\b|')ALTER(\b|')/i,
+    /(\b|')EXEC(\b|')/i,
+    /(\b|')UNION(\b|')/i,
+    /--/,
+    /;/,
+    /\/\*/,
+    /\*\//
+  ];
+  
+  return sqlPatterns.some(pattern => pattern.test(input));
+};
+
+/**
  * Survey page component for displaying and taking a survey
  * @returns Survey page component
  */
@@ -80,12 +126,65 @@ const SurveyPage: React.FC = () => {
   
   // Handle response changes
   const handleResponseChange = (questionId: string, value: string | string[] | number) => {
-    const newResponses = { ...responses, [questionId]: value };
-    setResponses(newResponses);
+    // If it's a numeric value, no need to sanitize
+    if (typeof value === 'number') {
+      const newResponses = { ...responses, [questionId]: value };
+      setResponses(newResponses);
+      
+      // Save responses to Redux
+      if (surveyId) {
+        updateSurveyResponses(surveyId, newResponses);
+      }
+      
+      // Clear error for this question if it exists
+      if (errors[questionId]) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[questionId];
+          return newErrors;
+        });
+      }
+      return;
+    }
     
-    // Save responses to Redux
-    if (surveyId) {
-      updateSurveyResponses(surveyId, newResponses);
+    // For string values, sanitize the input
+    if (typeof value === 'string') {
+      const sanitizedValue = sanitizeInput(value);
+      
+      // Check for potential SQL injection attempts
+      if (containsSqlInjection(value)) {
+        setErrors(prev => ({
+          ...prev,
+          [questionId]: 'Invalid input detected. Please remove special characters.'
+        }));
+        return;
+      }
+      
+      const newResponses = { ...responses, [questionId]: sanitizedValue };
+      setResponses(newResponses);
+      
+      // Save responses to Redux
+      if (surveyId) {
+        updateSurveyResponses(surveyId, newResponses);
+      }
+    }
+    
+    // For array values (multiple choice), sanitize each item
+    if (Array.isArray(value)) {
+      const sanitizedValues = value.map(item => {
+        if (typeof item === 'string') {
+          return sanitizeInput(item);
+        }
+        return item;
+      });
+      
+      const newResponses = { ...responses, [questionId]: sanitizedValues };
+      setResponses(newResponses);
+      
+      // Save responses to Redux
+      if (surveyId) {
+        updateSurveyResponses(surveyId, newResponses);
+      }
     }
     
     // Clear error for this question if it exists
@@ -100,7 +199,19 @@ const SurveyPage: React.FC = () => {
   
   // Handle user info changes
   const handleUserInfoChange = (field: 'email' | 'name', value: string) => {
-    const newUserInfo = { ...userInfo, [field]: value };
+    // Sanitize input
+    const sanitizedValue = sanitizeInput(value);
+    
+    // Check for potential SQL injection attempts
+    if (containsSqlInjection(value)) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: 'Invalid input detected. Please remove special characters.'
+      }));
+      return;
+    }
+    
+    const newUserInfo = { ...userInfo, [field]: sanitizedValue };
     setUserInfo(newUserInfo);
     
     // Save user info to Redux
@@ -139,6 +250,19 @@ const SurveyPage: React.FC = () => {
             newErrors[question.id] = 'This question is required';
           }
         }
+        
+        // Validate text inputs for potential security issues
+        if (question.type === 'text' && responses[question.id]) {
+          const textResponse = responses[question.id] as string;
+          
+          if (textResponse.length > 500) {
+            newErrors[question.id] = 'Response is too long. Please limit to 500 characters.';
+          }
+          
+          if (containsSqlInjection(textResponse)) {
+            newErrors[question.id] = 'Invalid input detected. Please remove special characters.';
+          }
+        }
       });
     } else {
       // Validate user info
@@ -146,6 +270,16 @@ const SurveyPage: React.FC = () => {
         newErrors.email = 'Email is required';
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userInfo.email)) {
         newErrors.email = 'Please enter a valid email address';
+      }
+      
+      // Check email input for potential security issues
+      if (userInfo.email && containsSqlInjection(userInfo.email)) {
+        newErrors.email = 'Invalid input detected. Please remove special characters.';
+      }
+      
+      // Check name input for potential security issues 
+      if (userInfo.name && containsSqlInjection(userInfo.name)) {
+        newErrors.name = 'Invalid input detected. Please remove special characters.';
       }
     }
     
@@ -173,22 +307,41 @@ const SurveyPage: React.FC = () => {
   const handleSubmit = async () => {
     if (surveyId) {
       try {
+        // Final validation before submission
+        if (!validateCurrentStep()) {
+          return;
+        }
+        
         // Format the responses for submission
         const formattedResponses = Object.keys(responses).map((questionId) => {
-          const value = responses[questionId];
-          // Convert numbers to strings for API submission if needed
-          const formattedValue = typeof value === 'number' ? value.toString() : value;
+          let value = responses[questionId];
+          
+          // Clean all string values once more before submission
+          if (typeof value === 'string') {
+            value = sanitizeInput(value);
+          } else if (typeof value === 'number') {
+            // Convert numbers to strings for API submission
+            value = value.toString();
+          } else if (Array.isArray(value)) {
+            // Clean all string values in an array
+            value = value.map(item => typeof item === 'string' ? sanitizeInput(item) : item);
+          }
+          
           return {
             questionId,
-            answer: formattedValue,
+            answer: value,
           };
         });
         
-        // Submit the response
+        // Final user info sanitization
+        const sanitizedEmail = sanitizeInput(userInfo.email);
+        const sanitizedName = userInfo.name ? sanitizeInput(userInfo.name) : undefined;
+        
+        // Submit the response with sanitized data
         await submitResponse({
           surveyId,
-          email: userInfo.email,
-          name: userInfo.name || undefined,
+          email: sanitizedEmail,
+          name: sanitizedName,
           responses: formattedResponses,
         }).unwrap();
         
@@ -202,7 +355,7 @@ const SurveyPage: React.FC = () => {
         // Show success message and redirect after delay
         setSubmitted(true);
         setTimeout(() => {
-          navigate(`/survey/${surveyId}/success`); // Redirect to /survey/:surveyId/success after submission
+          navigate(`/survey/${surveyId}/success`);
         }, 2000);
       } catch (error) {
         console.error('Failed to submit survey:', error);
