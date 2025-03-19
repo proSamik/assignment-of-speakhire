@@ -59,7 +59,8 @@ app.use('/api/responses', responseRoutes);
 
 // Special route for the responses viewer
 app.get('/responses-viewer', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/api-test.html'));
+  // Allow access from the browser by sending the HTML file
+  res.sendFile(path.join(__dirname, '../public/api-test.html'), { headers: { 'Access-Control-Allow-Origin': '*' } });
 });
 
 // Health check endpoint
