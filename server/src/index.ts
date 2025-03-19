@@ -31,19 +31,22 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    // Reject requests with no origin
+    if (!origin) {
+      return callback(new Error('Not allowed by CORS: No origin specified'), false);
+    }
     
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`Not allowed by CORS: Origin ${origin} not allowed`), false);
     }
   },
   credentials: true
 }));
 
 console.log(`CORS configured to allow origins:`, allowedOrigins);
+console.log('Requests with no origin will be rejected');
 
 app.use(express.json());
 
