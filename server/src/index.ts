@@ -21,19 +21,29 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Middleware
-// In development, allow all origins for easier testing
-if (process.env.NODE_ENV === 'development') {
-  app.use(cors());
-  console.log('CORS enabled for all origins in development mode');
-} else {
-  // In production, restrict to configured client URL
-  app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
-    credentials: true
-  }));
-  console.log(`CORS restricted to origin: ${process.env.CLIENT_URL || 'http://localhost:3000'}`);
-}
+// Configure CORS
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:3000',
+  // Add versions with and without trailing slash
+  (process.env.CLIENT_URL || 'http://localhost:3000').replace(/\/$/, ''),
+  (process.env.CLIENT_URL || 'http://localhost:3000') + '/'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
+console.log(`CORS configured to allow origins:`, allowedOrigins);
 
 app.use(express.json());
 
