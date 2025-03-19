@@ -26,6 +26,20 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# client env files
+client/.env
+client/.env.local
+client/.env.development
+client/.env.test
+client/.env.production
+
+# server env files
+server/.env
+server/.env.local
+server/.env.development
+server/.env.test
+server/.env.production
+
 # editor directories and files
 .idea
 .vscode
